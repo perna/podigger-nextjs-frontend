@@ -38,7 +38,11 @@ vi.mock("@/features/home", async () => {
   };
 });
 
-const episode = { id: 1, title: "episode one" } as unknown as Episode;
+const episode = {
+  id: 1,
+  title: "episode one",
+  podcast: { id: 1, name: "Podcast one", image: null },
+} as unknown as Episode;
 
 describe("EpisodeList (004 T124)", () => {
   beforeEach(() => {
