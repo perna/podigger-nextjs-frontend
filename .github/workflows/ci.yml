@@ -1,0 +1,73 @@
+name: Frontend CI/CD
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_TELEMETRY_DISABLED: 1
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  image:
+    if: github.event_name == 'push'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=sha,prefix=sha-,format=long
+            type=ref,event=branch
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.production
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ vars.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_ENVIRONMENT=${{ vars.NEXT_PUBLIC_ENVIRONMENT }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  request-deploy:
+    if: github.event_name == 'push'
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.INFRA_DISPATCH_TOKEN }}
+          repository: perna/podigger-infra
+          event-type: application-image-published
+          client-payload: >-
+            {"service":"frontend","environment":"${{ github.ref_name == 'main' && 'production' || 'staging' }}","image":"ghcr.io/${{ github.repository }}:sha-${{ github.sha }}"}

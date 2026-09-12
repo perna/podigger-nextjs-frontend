@@ -1,7 +1,7 @@
 /**
  * T109 — Structural rules test.
  *
- * Walks the frontend/src/ tree and applies each rule. Fails if any
+ * Walks the src/ tree and applies each rule. Fails if any
  * rule reports a violation. Also asserts the matcher is non-trivial
  * by checking that a synthetic process.env read in a temp file IS
  * caught.
